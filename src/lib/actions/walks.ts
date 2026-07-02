@@ -27,7 +27,9 @@ export async function createWalkAction(formData: FormData) {
     .select('id')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
 
   const { data: conversation } = await supabase
     .from('conversations')
@@ -40,7 +42,12 @@ export async function createWalkAction(formData: FormData) {
     .single();
 
   if (conversation) {
-    await supabase.from('conversation_members').insert({ conversation_id: conversation.id, user_id: user.id });
+    await supabase
+      .from('conversation_members')
+      .insert({
+        conversation_id: conversation.id,
+        user_id: user.id
+      });
   }
 
   revalidatePath('/walks');
@@ -53,6 +60,53 @@ export async function requestWalkParticipationAction(formData: FormData) {
   const walkId = String(formData.get('walk_id'));
   const dogId = String(formData.get('dog_id'));
 
+  if (!walkId || !dogId) {
+    throw new Error('Не выбрана прогулка или собака');
+  }
+
+  const { data: walk, error: walkError } = await supabase
+    .from('walks')
+    .select('id, creator_id')
+    .eq('id', walkId)
+    .single();
+
+  if (walkError) {
+    throw new Error(walkError.message);
+  }
+
+  if (walk.creator_id === user.id) {
+    revalidatePath('/walks');
+    return;
+  }
+
+  const { data: dog, error: dogError } = await supabase
+    .from('dog_profiles')
+    .select('id')
+    .eq('id', dogId)
+    .eq('owner_id', user.id)
+    .single();
+
+  if (dogError || !dog) {
+    throw new Error('Можно отправить заявку только от имени своей собаки');
+  }
+
+  const { data: existingParticipant, error: existingError } = await supabase
+    .from('walk_participants')
+    .select('id')
+    .eq('walk_id', walkId)
+    .eq('user_id', user.id)
+    .eq('dog_id', dogId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existingParticipant) {
+    revalidatePath('/walks');
+    return;
+  }
+
   const { error } = await supabase
     .from('walk_participants')
     .insert({
@@ -62,6 +116,9 @@ export async function requestWalkParticipationAction(formData: FormData) {
       status: 'requested'
     });
 
-  if (error) throw new Error(error.message);
+  if (error && error.code !== '23505') {
+    throw new Error(error.message);
+  }
+
   revalidatePath('/walks');
 }
