@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
@@ -28,14 +29,19 @@ export async function createSupabaseServerClient() {
 
 export async function getSessionUser() {
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
   return user;
 }
 
 export async function requireUser() {
   const user = await getSessionUser();
+
   if (!user) {
-    throw new Error('Необходима авторизация');
+    redirect('/login');
   }
+
   return user;
 }
