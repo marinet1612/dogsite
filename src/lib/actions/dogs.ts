@@ -19,11 +19,16 @@ export async function createDogAction(formData: FormData) {
     activity_level: String(formData.get('activity_level') || 'medium'),
     city: MVP_CITY,
     district: String(formData.get('district') || '').trim(),
+    metro_station: String(formData.get('metro_station') || '').trim(),
     description: String(formData.get('description') || '').trim()
   };
 
   const { error } = await supabase.from('dog_profiles').insert(payload);
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
   revalidatePath('/owner');
 }
 
@@ -46,7 +51,11 @@ export async function createProgressEntryAction(formData: FormData) {
   };
 
   const { error } = await supabase.from('progress_entries').insert(payload);
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
   revalidatePath('/owner/progress');
   revalidatePath('/owner');
 }
