@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #fff8ef;
+  --foreground: #3c2a21;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 10%, rgba(255, 138, 101, 0.16), transparent 26%),
+    radial-gradient(circle at 90% 10%, rgba(142, 197, 255, 0.20), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(140, 215, 182, 0.20), transparent 32%),
+    var(--background);
+  color: var(--foreground);
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  outline-color: #ff8a65;
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .card {
+    @apply rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-soft backdrop-blur;
+  }
+
+  .card-muted {
+    @apply rounded-[2rem] border border-white/70 bg-white/55 p-6 shadow-soft backdrop-blur;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-2xl bg-cocoa px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cocoa/20 transition hover:-translate-y-0.5 hover:bg-[#251913];
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-2xl border border-cocoa/10 bg-white/80 px-5 py-3 text-sm font-semibold text-cocoa shadow-sm transition hover:-translate-y-0.5 hover:bg-white;
+  }
+
+  .input {
+    @apply w-full rounded-2xl border border-cocoa/10 bg-white/80 px-4 py-3 text-sm text-cocoa placeholder:text-cocoa/40 shadow-sm transition focus:border-paw focus:ring-4 focus:ring-paw/15;
+  }
+
+  .label {
+    @apply mb-2 block text-sm font-semibold text-cocoa/80;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-cocoa/10 bg-white/70 px-3 py-1 text-xs font-semibold text-cocoa/70;
+  }
+
+  .section-title {
+    @apply text-3xl font-black tracking-tight text-cocoa sm:text-4xl;
+  }
+
+  .section-subtitle {
+    @apply mt-3 max-w-2xl text-base leading-7 text-cocoa/65;
+  }
+}
