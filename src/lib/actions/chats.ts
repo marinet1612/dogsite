@@ -1,7 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createSupabaseServerClient, requireUser } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import {
+  createSupabaseServerClient,
+  requireUser
+} from '@/lib/supabase/server';
 import { requireConversationMember } from '@/lib/authz';
 import { requiredText } from '@/lib/validation';
 
@@ -51,48 +55,24 @@ export async function createDirectConversationAction(
     throw new Error('Нельзя создать чат с самим собой');
   }
 
-  const { data: target, error: targetError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', targetUserId)
-    .maybeSingle();
+  const { data: conversationId, error } = await supabase.rpc(
+    'create_direct_conversation',
+    {
+      target_user_id: targetUserId
+    }
+  );
 
-  if (targetError || !target) {
-    throw new Error('Пользователь не найден');
-  }
+  if (error || !conversationId) {
+    console.error(
+      'createDirectConversationAction:',
+      error
+    );
 
-  const { data: conversation, error: conversationError } =
-    await supabase
-      .from('conversations')
-      .insert({
-        type: 'direct',
-        title: 'Личный чат'
-      })
-      .select('id')
-      .single();
-
-  if (conversationError || !conversation) {
-    console.error('createDirectConversationAction:', conversationError);
-    throw new Error('Не удалось создать чат');
-  }
-
-  const { error: membersError } = await supabase
-    .from('conversation_members')
-    .insert([
-      {
-        conversation_id: conversation.id,
-        user_id: user.id
-      },
-      {
-        conversation_id: conversation.id,
-        user_id: targetUserId
-      }
-    ]);
-
-  if (membersError) {
-    console.error('createDirectConversationAction members:', membersError);
-    throw new Error('Не удалось добавить участников чата');
+    throw new Error(
+      error?.message || 'Не удалось создать личный чат'
+    );
   }
 
   revalidatePath('/chats');
+  redirect(`/chats/${conversationId}`);
 }
