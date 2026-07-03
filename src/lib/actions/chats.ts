@@ -12,7 +12,12 @@ export async function sendMessageAction(formData: FormData) {
     100
   );
 
-  const body = requiredText(formData.get('body'), 'Сообщение', 4000);
+  const body = requiredText(
+    formData.get('body'),
+    'Сообщение',
+    4000
+  );
+
   const { user, supabase } =
     await requireConversationMember(conversationId);
 
@@ -22,12 +27,17 @@ export async function sendMessageAction(formData: FormData) {
     body
   });
 
-  if (error) throw new Error('Не удалось отправить сообщение');
+  if (error) {
+    console.error('sendMessageAction:', error);
+    throw new Error('Не удалось отправить сообщение');
+  }
 
   revalidatePath(`/chats/${conversationId}`);
 }
 
-export async function createDirectConversationAction(formData: FormData) {
+export async function createDirectConversationAction(
+  formData: FormData
+) {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
 
@@ -41,24 +51,28 @@ export async function createDirectConversationAction(formData: FormData) {
     throw new Error('Нельзя создать чат с самим собой');
   }
 
-  const { data: target } = await supabase
+  const { data: target, error: targetError } = await supabase
     .from('profiles')
     .select('id')
     .eq('id', targetUserId)
     .maybeSingle();
 
-  if (!target) throw new Error('Пользователь не найден');
+  if (targetError || !target) {
+    throw new Error('Пользователь не найден');
+  }
 
-  const { data: conversation, error } = await supabase
-    .from('conversations')
-    .insert({
-      type: 'direct',
-      title: 'Личный чат'
-    })
-    .select('id')
-    .single();
+  const { data: conversation, error: conversationError } =
+    await supabase
+      .from('conversations')
+      .insert({
+        type: 'direct',
+        title: 'Личный чат'
+      })
+      .select('id')
+      .single();
 
-  if (error || !conversation) {
+  if (conversationError || !conversation) {
+    console.error('createDirectConversationAction:', conversationError);
     throw new Error('Не удалось создать чат');
   }
 
@@ -76,7 +90,8 @@ export async function createDirectConversationAction(formData: FormData) {
     ]);
 
   if (membersError) {
-    throw new Error('Не удалось добавить участников');
+    console.error('createDirectConversationAction members:', membersError);
+    throw new Error('Не удалось добавить участников чата');
   }
 
   revalidatePath('/chats');
