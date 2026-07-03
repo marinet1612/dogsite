@@ -2,7 +2,7 @@ export function requiredText(
   value: unknown,
   label: string,
   maxLength = 500
-) {
+): string {
   const text = String(value ?? '').trim();
 
   if (!text) {
@@ -19,7 +19,7 @@ export function requiredText(
 export function optionalText(
   value: unknown,
   maxLength = 2000
-) {
+): string {
   const text = String(value ?? '').trim();
 
   if (text.length > maxLength) {
@@ -34,14 +34,23 @@ export function numberInRange(
   label: string,
   min: number,
   max: number
-) {
+): number {
   const normalizedValue =
-    typeof value === 'string' ? value.trim() : value;
+    typeof value === 'string'
+      ? value.trim()
+      : value;
+
+  if (
+    normalizedValue === '' ||
+    normalizedValue === null ||
+    normalizedValue === undefined
+  ) {
+    throw new Error(`Заполните поле «${label}»`);
+  }
 
   const number = Number(normalizedValue);
 
   if (
-    normalizedValue === '' ||
     !Number.isFinite(number) ||
     number < min ||
     number > max
@@ -52,7 +61,9 @@ export function numberInRange(
   return number;
 }
 
-export function oneOf<const T extends readonly string[]>(
+export function oneOf<
+  const T extends readonly string[]
+>(
   value: unknown,
   allowed: T,
   label: string
@@ -60,7 +71,9 @@ export function oneOf<const T extends readonly string[]>(
   const result = String(value ?? '');
 
   if (!allowed.includes(result)) {
-    throw new Error(`Некорректное значение поля «${label}»`);
+    throw new Error(
+      `Некорректное значение поля «${label}»`
+    );
   }
 
   return result as T[number];
