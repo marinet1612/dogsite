@@ -2,85 +2,201 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { createSupabaseServerClient, requireUser } from '@/lib/supabase/server';
 import { MVP_CITY } from '@/lib/config';
+import { requireRole } from '@/lib/authz';
+import {
+  numberInRange,
+  optionalText,
+  requiredText
+} from '@/lib/validation';
 
-export async function upsertSpecialistProfileAction(formData: FormData) {
-  const user = await requireUser();
-  const supabase = await createSupabaseServerClient();
+export async function upsertSpecialistProfileAction(
+  formData: FormData
+) {
+  const { user, supabase } =
+    await requireRole(['specialist']);
 
   const districts = String(formData.get('districts') || '')
     .split(',')
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 20);
 
-  const specializations = String(formData.get('specializations') || '')
+  const specializations = String(
+    formData.get('specializations') || ''
+  )
     .split(',')
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const priceFrom = numberInRange(
+    formData.get('price_from') || 0,
+    'Цена от',
+    0,
+    1_000_000
+  );
+
+  const priceTo = numberInRange(
+    formData.get('price_to') || 0,
+    'Цена до',
+    0,
+    1_000_000
+  );
+
+  if (priceTo > 0 && priceTo < priceFrom) {
+    throw new Error('Цена до не может быть меньше цены от');
+  }
 
   const { data: profile, error } = await supabase
     .from('specialist_profiles')
-    .upsert({
-      user_id: user.id,
-      public_name: String(formData.get('public_name') || '').trim(),
-      city: MVP_CITY,
-      districts,
-      experience_years: Number(formData.get('experience_years') || 0),
-      education: String(formData.get('education') || '').trim(),
-      description: String(formData.get('description') || '').trim(),
-      methods: String(formData.get('methods') || '').trim(),
-      price_from: Number(formData.get('price_from') || 0),
-      price_to: Number(formData.get('price_to') || 0),
-      works_online: formData.get('works_online') === 'on',
-      works_offline: formData.get('works_offline') === 'on',
-      verification_status: 'pending'
-    }, { onConflict: 'user_id' })
+    .upsert(
+      {
+        user_id: user.id,
+
+        public_name: requiredText(
+          formData.get('public_name'),
+          'Публичное имя',
+          150
+        ),
+
+        city: MVP_CITY,
+        districts,
+
+        experience_years: numberInRange(
+          formData.get('experience_years') || 0,
+          'Опыт',
+          0,
+          80
+        ),
+
+        education: optionalText(
+          formData.get('education'),
+          2000
+        ),
+
+        description: optionalText(
+          formData.get('description'),
+          5000
+        ),
+
+        methods: optionalText(
+          formData.get('methods'),
+          3000
+        ),
+
+        price_from: priceFrom,
+        price_to: priceTo,
+
+        works_online:
+          formData.get('works_online') === 'on',
+
+        works_offline:
+          formData.get('works_offline') === 'on',
+
+        verification_status: 'pending'
+      },
+      {
+        onConflict: 'user_id'
+      }
+    )
     .select('id')
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error || !profile) {
+    console.error('upsertSpecialistProfileAction:', error);
+    throw new Error('Не удалось сохранить профиль');
+  }
 
-  if (profile?.id) {
-    await supabase.from('specialist_specializations').delete().eq('specialist_id', profile.id);
-    if (specializations.length > 0) {
-      await supabase.from('specialist_specializations').insert(
-        specializations.map((specialization_type) => ({
+  const { error: deleteError } = await supabase
+    .from('specialist_specializations')
+    .delete()
+    .eq('specialist_id', profile.id);
+
+  if (deleteError) {
+    console.error(
+      'upsertSpecialistProfileAction delete:',
+      deleteError
+    );
+
+    throw new Error('Не удалось обновить специализации');
+  }
+
+  if (specializations.length > 0) {
+    const { error: insertError } = await supabase
+      .from('specialist_specializations')
+      .insert(
+        specializations.map((specializationType) => ({
           specialist_id: profile.id,
-          specialization_type
+          specialization_type: specializationType
         }))
       );
+
+    if (insertError) {
+      console.error(
+        'upsertSpecialistProfileAction insert:',
+        insertError
+      );
+
+      throw new Error('Не удалось сохранить специализации');
     }
   }
 
   revalidatePath('/specialist');
+  revalidatePath('/specialists');
   redirect('/specialist');
 }
 
-export async function approveSpecialistAction(formData: FormData) {
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const specialistId = String(formData.get('specialist_id'));
+export async function approveSpecialistAction(
+  formData: FormData
+) {
+  const { supabase } = await requireRole(['admin']);
+
+  const specialistId = requiredText(
+    formData.get('specialist_id'),
+    'Специалист',
+    100
+  );
 
   const { error } = await supabase
     .from('specialist_profiles')
-    .update({ verification_status: 'approved' })
+    .update({
+      verification_status: 'approved'
+    })
     .eq('id', specialistId);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('approveSpecialistAction:', error);
+    throw new Error('Не удалось подтвердить специалиста');
+  }
+
   revalidatePath('/admin');
+  revalidatePath('/specialists');
 }
 
-export async function rejectSpecialistAction(formData: FormData) {
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const specialistId = String(formData.get('specialist_id'));
+export async function rejectSpecialistAction(
+  formData: FormData
+) {
+  const { supabase } = await requireRole(['admin']);
+
+  const specialistId = requiredText(
+    formData.get('specialist_id'),
+    'Специалист',
+    100
+  );
 
   const { error } = await supabase
     .from('specialist_profiles')
-    .update({ verification_status: 'rejected' })
+    .update({
+      verification_status: 'rejected'
+    })
     .eq('id', specialistId);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('rejectSpecialistAction:', error);
+    throw new Error('Не удалось отклонить специалиста');
+  }
+
   revalidatePath('/admin');
+  revalidatePath('/specialists');
 }
